@@ -41,11 +41,11 @@
  * Ben Wai-Kong Lee
  *
  ******************************************************************************/
-
 #include "main.h"
 #include "hal_LCD.h"
 #include "TempSensorMode.h"
 #include "aes256.h"
+
 #include <stdio.h>
 #include <msp430.h>
 #include <string.h>
@@ -145,10 +145,16 @@ void exercise1(void)
     // expected ciphertext: 8e a2 b7 ca 51 67 45 bf ea fc 49 90 4b 49 60 89
 
     aes256_init(&ctx, key);
+    start = cpucycles();
     aes256_decrypt_ecb(&ctx, buf);
+    end = cpucycles();
     aes256_done(&ctx);
-
+    
     memset(buffer, 0, sizeof(buffer));
+    sprintf(buffer, "Decryption takes %d clock cycles\r\n", end-start);
+    printString(buffer, sizeof(buffer));
+
+
     sprintf(buffer, "PText: %d %d %d %d %d %d %d %d \r\n", (uint16_t)(buf[0]+(buf[1]<<8)),(uint16_t)(buf[2]+(buf[3]<<8)),(uint16_t)(buf[4]+(buf[5]<<8)),(uint16_t)(buf[6]+(buf[7]<<8)),(uint16_t)(buf[8]+(buf[9]<<8)),(uint16_t)(buf[10]+(buf[11]<<8)),(uint16_t)(buf[12]+(buf[13]<<8)),(uint16_t)(buf[14]+(buf[15]<<8)));
     printString(buffer, sizeof(buffer));
 }
