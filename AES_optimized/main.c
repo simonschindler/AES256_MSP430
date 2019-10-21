@@ -100,7 +100,7 @@ void printString(char *str, int len)
     {
         while(!(UCA0IFG & UCTXIFG));
         UCA0TXBUF = str[i];                   // Load data onto buffer
-        __delay_cycles(1000);
+        __delay_cycles(10000);
     }
 }
 
@@ -122,7 +122,7 @@ void exercise1(void)
     for (i = 0; i < sizeof(key);i++) key[i] = i;
 
     // view the key in serial port (only first 16 bytes)
-    sprintf(buffer, "Key: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\r\n", key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8], key[9], key[10], key[11], key[12], key[13], key[14], key[15]);
+    sprintf(buffer, "\r\n\r\nKey: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\r\n", key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8], key[9], key[10], key[11], key[12], key[13], key[14], key[15]);
     printString(buffer, sizeof(buffer));
 
     // view the plaintext in serial port
@@ -216,20 +216,21 @@ int main(void) {
 
     __enable_interrupt();
 
-    while(1)
-    {
+
         LCD_E_selectDisplayMemory(LCD_E_BASE, LCD_E_DISPLAYSOURCE_MEMORY);
         clearLCD();              // Clear all LCD segments
         tempSensorModeInit();    // initialize temperature mode
 
+        _delay_cycles(500000);
+
         exercise1();
 
-        while(1);
+
         //verify_aes256();
         //tempSensor();
 
         __no_operation();
-    }
+while(1);
 }
 
 /*
