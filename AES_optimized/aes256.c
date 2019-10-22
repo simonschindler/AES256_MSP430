@@ -21,7 +21,13 @@
 
 #define FD(x)  (((x) >> 1) ^ (((x) & 1) ? 0x8d : 0))
 
+/****  choose between the different Improvement Modes****
+ ****  make sure to comment out the others           ****/
+//#define BASIC         //basic mode without any improvements in the code
 #define LOOP_UNROLLING
+
+
+
 #define BACK_TO_TABLES
 
 static uint8_t rj_xtime(uint8_t);
@@ -215,7 +221,7 @@ static void aes_subBytes(uint8_t *buf)
 }
 #endif
 
-#ifndef LOOP_UNROLLING
+#ifdef BASIC
 static void aes_subBytes(uint8_t *buf)
 {
     register uint8_t i = 16;
@@ -247,7 +253,7 @@ static void aes_subBytes_inv(uint8_t *buf)
 }
 #endif
 
-#ifndef LOOP_UNROLLING
+#ifdef BASIC
 static void aes_subBytes_inv(uint8_t *buf)
 {
     register uint8_t i = 16;
@@ -280,7 +286,7 @@ static void aes_addRoundKey(uint8_t *buf, uint8_t *key)
 }
 #endif
 
-#ifndef LOOP_UNROLLING
+#ifdef BASIC
 static void aes_addRoundKey(uint8_t *buf, uint8_t *key)
 {
     register uint8_t i = 16;
@@ -315,7 +321,7 @@ static void aes_addRoundKey_cpy(uint8_t *buf, uint8_t *key, uint8_t *cpk)
 }
 #endif
 
-#ifndef LOOP_UNROLLING
+#ifdef BASIC
 static void aes_addRoundKey_cpy(uint8_t *buf, uint8_t *key, uint8_t *cpk)
 {
     register uint8_t i = 16;
@@ -398,7 +404,7 @@ static void aes_mixColumns(uint8_t *buf)
 } /* aes_mixColumns */
 #endif
 
-#ifndef LOOP_UNROLLING
+#ifdef BASIC
 static void aes_mixColumns(uint8_t *buf)
 {
     register uint8_t i, a, b, c, d, e;
@@ -481,7 +487,7 @@ void aes_mixColumns_inv(uint8_t *buf)
 } /* aes_mixColumns_inv */
 #endif
 
-#ifndef LOOP_UNROLLING
+#ifdef BASIC
 void aes_mixColumns_inv(uint8_t *buf)
 {
     register uint8_t i, a, b, c, d, e, x, y, z;
@@ -506,6 +512,55 @@ void aes_mixColumns_inv(uint8_t *buf)
 /* -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- */
+#ifdef LOOP_UNROLLING
+static void aes_expandEncKey(uint8_t *k, uint8_t *rc)
+{
+
+
+    k[0] ^= rj_sbox(k[29]) ^ (*rc);
+    k[1] ^= rj_sbox(k[30]);
+    k[2] ^= rj_sbox(k[31]);
+    k[3] ^= rj_sbox(k[28]);
+    *rc = rj_xtime( *rc);
+
+
+
+    k[4] ^= k[0]  ;
+    k[5] ^= k[1];
+    k[6] ^= k[2];
+    k[7] ^= k[3];
+    k[8] ^= k[4]  ;
+    k[9] ^= k[5];
+    k[10] ^= k[6];
+    k[11] ^= k[7];
+    k[12] ^= k[8]  ;
+    k[13] ^= k[9];
+    k[14] ^= k[10];
+    k[15] ^= k[11];
+
+    k[16] ^= rj_sbox(k[12]);
+    k[17] ^= rj_sbox(k[13]);
+    k[18] ^= rj_sbox(k[14]);
+    k[19] ^= rj_sbox(k[15]);
+
+
+    k[20] ^= k[16];
+    k[21] ^= k[17];
+    k[22] ^= k[18];
+    k[23] ^= k[19];
+    k[24] ^= k[20];
+    k[25] ^= k[21];
+    k[26] ^= k[22];
+    k[27] ^= k[23];
+    k[28] ^= k[24];
+    k[29] ^= k[25];
+    k[30] ^= k[26];
+    k[31] ^= k[27];
+
+} /* aes_expandEncKey */
+#endif
+
+#ifdef BASIC
 static void aes_expandEncKey(uint8_t *k, uint8_t *rc)
 {
     register uint8_t i;
@@ -527,8 +582,55 @@ static void aes_expandEncKey(uint8_t *k, uint8_t *rc)
             k[i + 2] ^= k[i - 2], k[i + 3] ^= k[i - 1];
 
 } /* aes_expandEncKey */
+#endif
+/* -------------------------------------------------------------------------- */
+
 
 /* -------------------------------------------------------------------------- */
+#ifdef LOOP_UNROLLING
+void aes_expandDecKey(uint8_t *k, uint8_t *rc)
+{
+    k[28 + 0] ^= k[28 - 4];
+    k[28 + 1] ^= k[28 - 3];
+    k[28 + 2] ^= k[28 - 2];
+    k[28 + 3] ^= k[28 - 1];
+    k[24 + 0] ^= k[24 - 4];
+    k[24 + 1] ^= k[24 - 3];
+    k[24 + 2] ^= k[24 - 2];
+    k[24 + 3] ^= k[24 - 1];
+    k[20 + 0] ^= k[20 - 4];
+    k[20 + 1] ^= k[20 - 3];
+    k[20 + 2] ^= k[20 - 2];
+    k[20 + 3] ^= k[20 - 1];
+
+    k[16] ^= rj_sbox(k[12]);
+    k[17] ^= rj_sbox(k[13]);
+    k[18] ^= rj_sbox(k[14]);
+    k[19] ^= rj_sbox(k[15]);
+
+
+    k[12 + 0] ^= k[12 - 4];
+    k[12 + 1] ^= k[12 - 3];
+    k[12 + 2] ^= k[12 - 2];
+    k[12 + 3] ^= k[12 - 1];
+    k[8 + 0] ^= k[8 - 4];
+    k[8 + 1] ^= k[8 - 3];
+    k[8 + 2] ^= k[8 - 2];
+    k[8 + 3] ^= k[8 - 1];
+    k[4 + 0] ^= k[4 - 4];
+    k[4 + 1] ^= k[4 - 3];
+    k[4 + 2] ^= k[4 - 2];
+    k[4 + 3] ^= k[4 - 1];
+
+    *rc = FD(*rc);
+    k[0] ^= rj_sbox(k[29]) ^ (*rc);
+    k[1] ^= rj_sbox(k[30]);
+    k[2] ^= rj_sbox(k[31]);
+    k[3] ^= rj_sbox(k[28]);
+} /* aes_expandDecKey */
+#endif
+
+#ifdef BASIC
 void aes_expandDecKey(uint8_t *k, uint8_t *rc)
 {
     uint8_t i;
@@ -550,7 +652,7 @@ void aes_expandDecKey(uint8_t *k, uint8_t *rc)
     k[2] ^= rj_sbox(k[31]);
     k[3] ^= rj_sbox(k[28]);
 } /* aes_expandDecKey */
-
+#endif
 
 
 
