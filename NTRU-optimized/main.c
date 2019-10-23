@@ -15,6 +15,20 @@ static void init_ctra();
 static uint64_t ctr = 0;
 static int isinit = 0;
 
+//modulo operations
+//standard mod operation
+int mod(int a, int b)
+{
+    int r = a % b;
+    return r < 0 ? r + b : r;
+}
+//mod operation with neg output
+int modn(int a, int b)
+{
+    int r = a % b;
+    return (r < (-b/2 + 1) ? r + b : r > b/2 ? r-b : r);
+}
+
 // Transmit a string to serial port for debug purpose
 void printString(char *str, int len)
 {
@@ -24,7 +38,7 @@ void printString(char *str, int len)
 
         while(!(UCA0IFG & UCTXIFG));
         UCA0TXBUF = str[i];                   // Load data onto buffer
-//        __delay_cycles(1500);
+        //        __delay_cycles(1500);
         __no_operation();
     }
 }
@@ -42,43 +56,43 @@ void Init_Clock()
     while(CSCTL7 & (FLLUNLOCK0 | FLLUNLOCK1)); // Poll until FLL is locked
 
     CSCTL4 = SELMS__DCOCLKDIV | SELA__REFOCLK; // set default REFO(~32768Hz) as ACLK source, ACLK = 32768Hz
-                                             // default DCODIV as MCLK and SMCLK source}
+    // default DCODIV as MCLK and SMCLK source}
 }
 
 static void init_ctra()
 {
-  TA0CTL = TACLR;
-  TA0CTL = TASSEL_2 + MC_2 + TAIE + ID_3;
-  TA0CCTL0 |= CCIE;                             // TACCR0 interrupt enabled
-  isinit = 1;
+    TA0CTL = TACLR;
+    TA0CTL = TASSEL_2 + MC_2 + TAIE + ID_3;
+    TA0CCTL0 |= CCIE;                             // TACCR0 interrupt enabled
+    isinit = 1;
 }
 
 uint64_t cpucycles()
 {
-  if(!isinit) init_ctra();
-  return (ctr | TA0R) << 3;
+    if(!isinit) init_ctra();
+    return (ctr | TA0R) << 3;
 }
 
 void Init_UART()
 {
     // Configure UART pins
-      P1SEL0 |= BIT0 | BIT1;                    // set 2-UART pin as second function
+    P1SEL0 |= BIT0 | BIT1;                    // set 2-UART pin as second function
 
     // Configure UART
-      UCA0CTLW0 |= UCSWRST;
-      UCA0CTLW0 |= UCSSEL__SMCLK;
+    UCA0CTLW0 |= UCSWRST;
+    UCA0CTLW0 |= UCSSEL__SMCLK;
 
     // Baud Rate calculation
     // 8000000/(16*9600) = 52.083
     // Fractional portion = 0.083
     // User's Guide Table 14-4: UCBRSx = 0x49
     // UCBRFx = int ( (52.083-52)*16) = 1
-      UCA0BR0 = 52;                             // 8000000/16/9600
-      UCA0BR1 = 0x00;
-      UCA0MCTLW = 0x4900 | UCOS16 | UCBRF_1;
+    UCA0BR0 = 52;                             // 8000000/16/9600
+    UCA0BR1 = 0x00;
+    UCA0MCTLW = 0x4900 | UCOS16 | UCBRF_1;
 
-      UCA0CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
-      UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
+    UCA0CTLW0 &= ~UCSWRST;                    // Initialize eUSCI
+    UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
 }
 
 // The data needed to convert a number mod 3 to a number in the range: -1..1.
@@ -96,28 +110,32 @@ uint16_t ind(uint16_t x, uint16_t y, uint16_t deg)
     else return (deg + (x - y));
 }
 
-void simplePolyMulModQ(int16_t *res, int16_t *polyA, int8_t *polyB, uint16_t deg,
-    uint16_t q)
+void simplePolyMulModQ(int16_t *res, int16_t *polyA, int16_t *polyB, uint16_t deg,
+                       uint16_t q)
 {
     uint16_t i=0, j=0;
-    for (i = 0; i<deg; i++)
+    for (i = 0; i<=deg; i++)
     {
-        for (j = 0; j<deg; j++)
+        for (j = 0; j<=deg; j++)
         {
             // truncated polynomial multiplication
+
+            res[mod(j+i,deg+1)] += polyB[i]*polyA[j];
+            res[mod(j+i,deg+1)] = modn(res[mod(j+i,deg+1)],q);
         }
     }
 }
 
 
 //polyB must be 8-bit (msg)
-void simplePolyAddModQ(int16_t *res, int16_t *polyA, int8_t *polyB, uint16_t deg,
-    uint16_t q)
+void simplePolyAddModQ(int16_t *res, int16_t *polyA, int16_t *polyB, uint16_t deg,
+                       uint16_t q)
 {
     uint16_t i=0;
-    for (i = 0; i<deg; i++)
+    for (i = 0; i<=deg; i++)
     {
         // polynomial addition
+        res[i] = modn(polyB[i]+polyA[i],q);
     }
 
 }
@@ -139,10 +157,10 @@ void test_NTRU_112()
     //  Encrypt e = r*h + m
     start=cpucycles();
 
-
+    simplePolyMulModQ(e, h112, r112, NTRU_N_112-1, NTRU_Q_112);
+    simplePolyAddModQ(e, e, test_m112, NTRU_N_112-1, NTRU_Q_112);
 
     end=cpucycles();
-    sprintf(buffer, "Encrypted Message\r\n");
     printString(buffer, sizeof(buffer));
     sprintf(buffer, "NTRU encryption takes %lu clock cycles\r\n", end-start);
     printString(buffer, sizeof(buffer));
@@ -156,7 +174,7 @@ void test_NTRU_112()
     start=cpucycles();
     //  Decrypt a = f*e
 
-
+    simplePolyMulModQ(a, e, f112, NTRU_N_112-1, NTRU_Q_112);
 
     //  Calculate mod p to isolate the message/key.
     for (i = 0; i<NTRU_N_112; i++) a[i] = neg_mod_3_cpu[a[i]%3];
@@ -179,15 +197,35 @@ int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;                // Stop watchdog timer
 
-  // Configurations
+    // Configurations
     Init_GPIO();
     init_ctra();
     Init_Clock();
     Init_UART();
     PM5CTL0 &= ~LOCKLPM5;                    // Disable the GPIO power-on default high-impedance mode
-                                           // to activate 1previously configured port settings
+    // to activate 1previously configured port settings
     __enable_interrupt();
     test_NTRU_112();
+    /*//test simplePolyMulModQlt();
+    int16_t res[15] = {0};
+    int16_t polyA[7] = {3,0,2,0,-3,0,1};
+    int8_t polyB[7] = {1,-3,1,0,0,2,-1};
+
+    simplePolyMulModQ(res,polyA,polyB, 6,32);
+
+    char buffer[50]={0};
+    memset(buffer, 0, sizeof(buffer));
+    sprintf(buffer, "a*b: %d %d %d %d %d %d %d\r\n",res[6],res[5],res[4],res[3],res[2],res[1],res[0]);
+    printString(buffer, sizeof(buffer));
+
+    memset(res, 0, sizeof(res));
+    simplePolyAddModQ(res,polyA,polyB, 6,32);
+
+    memset(buffer, 0, sizeof(buffer));
+    sprintf(buffer, "a+b: %d %d %d %d %d %d %d\r\n",res[6],res[5],res[4],res[3],res[2],res[1],res[0]);
+    printString(buffer, sizeof(buffer));
+     */
+
     __no_operation();                         // For debugger
 }
 
@@ -200,15 +238,15 @@ void __attribute__ ((interrupt(USCI_A0_VECTOR))) USCI_A0_ISR (void)
 #error Compiler not supported!
 #endif
 {
-  switch(__even_in_range(UCA0IV,USCI_UART_UCTXCPTIFG))
-  {
+    switch(__even_in_range(UCA0IV,USCI_UART_UCTXCPTIFG))
+    {
     case USCI_NONE: break;
     case USCI_UART_UCRXIFG: break;
     case USCI_UART_UCTXIFG: break;
     case USCI_UART_UCSTTIFG: break;
     case USCI_UART_UCTXCPTIFG: break;
     default: break;
-  }
+    }
 }
 
 // Timer A0 interrupt service routine
@@ -250,25 +288,25 @@ void __attribute__ ((interrupt(ADC_VECTOR))) ADC_ISR (void)
 {
     switch(__even_in_range(ADCIV,ADCIV_ADCIFG))
     {
-        case ADCIV_NONE:
-            break;
-        case ADCIV_ADCOVIFG:
-            break;
-        case ADCIV_ADCTOVIFG:
-            break;
-        case ADCIV_ADCHIIFG:
-            break;
-        case ADCIV_ADCLOIFG:
-            break;
-        case ADCIV_ADCINIFG:
-            break;
-        case ADCIV_ADCIFG:
-            // Clear interrupt flag
-            ADC_clearInterrupt(ADC_BASE, ADC_COMPLETED_INTERRUPT_FLAG);
-            __bic_SR_register_on_exit(LPM3_bits);                // Exit LPM3
-            break;
-        default:
-            break;
+    case ADCIV_NONE:
+        break;
+    case ADCIV_ADCOVIFG:
+        break;
+    case ADCIV_ADCTOVIFG:
+        break;
+    case ADCIV_ADCHIIFG:
+        break;
+    case ADCIV_ADCLOIFG:
+        break;
+    case ADCIV_ADCINIFG:
+        break;
+    case ADCIV_ADCIFG:
+        // Clear interrupt flag
+        ADC_clearInterrupt(ADC_BASE, ADC_COMPLETED_INTERRUPT_FLAG);
+        __bic_SR_register_on_exit(LPM3_bits);                // Exit LPM3
+        break;
+    default:
+        break;
     }
 }
 
