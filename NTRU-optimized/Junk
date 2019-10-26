@@ -1,0 +1,295 @@
+def karatsuba_mul(a, b):
+    if a == 0 or b == 0:
+        return 0
+    m = max(a.bit_length(), b.bit_length())
+    if m <= 16:
+        return a * b
+    else:
+        k = m // 2
+        a1 = a >> k
+        a0 = a & (1 << k) - 1
+        b1 = b >> k
+        b0 = b & (1 << k) - 1
+        p2 = karatsuba_mul(a1, b1)
+        p1 = karatsuba_mul(a1 + a0, b1 + b0)
+        p0 = karatsuba_mul(a0, b0)
+        c2 = p2 << 2 * k
+        c1 = p1 - p2 - p0 << k
+        return c2 + c1 + p0
+        /*
+ ============================================================================
+ Name        : Karatsubra.c
+ Author      : 
+ Version     :
+ Copyright   : Your copyright notice
+ Description : Hello World in C, Ansi-style
+ ============================================================================
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+#define maxlen 401
+
+
+// The data needed to convert a number mod 3 to a number in the range: -1..1.
+static short neg_mod_3_data_cpu[5] = { 1, -1, 0, 1, -1 };
+// The variable used to convert a number mod 3 to a number in the range: -1..1.
+static short *neg_mod_3_cpu = &neg_mod_3_data_cpu[2];
+static unsigned char data_dec_data[3] = { 0, 1, 1 };    // for data encode/decode
+static unsigned char *data_dec = &data_dec_data[1];
+
+
+//modulo operations
+//standard mod operation
+int mod(int a, int b)
+{
+    int r = a % b;
+    return r < 0 ? r + b : r;
+}
+
+//mod operation with neg output
+int modn(int a, int b)
+{
+    int r = a % b;
+    return (r < (-b/2 + 1) ? r + b : r > b/2 ? r-b : r);
+}
+
+//mod operation with neg output, just works when b is a number with the base 2 (2 4 8 16...)
+int modn2(int a, int b)
+{
+    int r = a & (b-1);
+    return (r < (-b/2 + 1) ? r + b : r > b/2 ? r-b : r);
+}
+
+
+
+uint16_t ind(uint16_t j, uint16_t i, uint16_t deg)
+{
+    return (j + i) <(deg) ? j + i : j + i - deg;
+}
+
+//q has to be a number with the base 2 (2 4 8 16...)
+void polyMulMod_Q_With_r(int16_t *res, int16_t *polyA, int16_t *r, uint16_t deg,
+                         uint16_t q)
+{
+    uint16_t i=0, j=0;
+    for (i = 0; i<=deg; i++)
+    {
+        switch(r[i]) //sparseform
+        {
+        case 1:
+            for (j = 0; j<=deg; j++)
+            {
+                res[ind(j,i,deg+1)] = modn2(res[ind(j,i,deg+1)]+polyA[j],q);
+            }
+            break;
+        case -1:
+            for (j = 0; j<=deg; j++)
+            {
+                res[ind(j,i,deg+1)] = modn2(res[ind(j,i,deg+1)]-polyA[j],q);
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+//q has to be a number with the base 2 (2 4 8 16...)
+//flat form multipication
+void simplePolyMulModQ(int16_t *res, int16_t *polyA, int16_t *polyB, uint16_t deg,
+                       uint16_t q)
+{
+    uint16_t i=0, j=0;
+    for (i = 0; i<=deg; i++)
+    {
+        if(polyB[i]) //sparseform
+        {
+            for (j = 0; j<=deg; j++)
+            {
+                // truncated polynomial multiplication
+                if(polyA[j]) //sparseform
+                {
+                    res[ind(j,i,deg+1)] += polyB[i]*polyA[j];
+                    res[ind(j,i,deg+1)] = modn2(res[ind(j,i,deg+1)],q);
+                }
+            }
+        }
+    }
+}
+
+
+//polyB must be 8-bit (msg)
+//q has to be a number with the base 2 (2 4 8 16...)
+void simplePolyAddModQ(int16_t *res, int16_t *polyA, int16_t *polyB, uint16_t deg,
+                       uint16_t q)
+{
+    uint16_t i=0;
+    for (i = 0; i<=deg; i++)
+    {
+        // polynomial addition
+        res[i] = modn2(polyB[i]+polyA[i],q);
+    }
+
+}
+
+//polyB must be 8-bit (msg)
+//q has to be a number with the base 2 (2 4 8 16...)
+void simplePolySubModQ(int16_t *res, int16_t *polyA, int16_t *polyB, uint16_t deg,
+                       uint16_t q)
+{
+    uint16_t i=0;
+    for (i = 0; i<=deg; i++)
+    {
+        // polynomial addition
+        res[i] = modn2(polyA[i]-polyB[i],q);
+    }
+
+}
+
+//8-Bit version for message
+//q has to be a number with the base 2 (2 4 8 16...)
+void simplePolyMulModQ8(int16_t *res, int16_t *polyA, int8_t *polyB, uint16_t deg,
+                        uint16_t q)
+{
+    uint16_t i=0, j=0;
+    for (i = 0; i<=deg; i++)
+    {
+        if(polyB[i])//sparseform
+        {
+            for (j = 0; j<=deg; j++)
+            {
+                // truncated polynomial multiplication
+                if(polyA[j])//sparseform
+                {
+                    res[ind(j,i,deg+1)] += polyB[i]*polyA[j];
+                    res[ind(j,i,deg+1)] = modn2(res[ind(j,i,deg+1)],q);
+                }
+            }
+        }
+    }
+}
+
+
+//polyB must be 8-bit (msg)
+//q has to be a number with the base 2 (2 4 8 16...)
+void simplePolyAddModQ8(int16_t *res, int16_t *polyA, int8_t *polyB, uint16_t deg,
+                        uint16_t q)
+{
+    uint16_t i=0;
+    for (i = 0; i<=deg; i++)
+    {
+        // polynomial addition
+        res[i] = modn2(polyB[i]+polyA[i],q);
+    }
+
+}
+
+
+//q has to be a number with the base 2 (2 4 8 16...)
+//karatsubra-algorithm for polynomial multiplication modular q
+void karatsubra_poly_mult_modq(int16_t *res, int16_t *polyA, int16_t *polyB, uint16_t deg,
+                               uint16_t q)
+{
+    uint8_t i,j;
+    if(deg <= 1)
+    {
+        for (i = 0; i<=deg; i++)
+        {
+            if(polyB[i])//sparseform
+            {
+                for (j = 0; j<=deg; j++)
+                {
+                    // truncated polynomial multiplication
+                    if(polyA[j])//sparseform
+                    {
+                        res[j+i] += polyB[i]*polyA[j];
+                        res[j+i] = modn2(res[j+i],q);
+                    }
+                }
+            }
+        }
+
+    }
+    else
+    {
+        uint16_t k = (deg+1)/2;
+        uint8_t r = (deg+1)%2;
+        //uint16_t maxlen = 401;//4*k+2*r;
+        uint16_t i ;
+        int16_t a1[maxlen] = {0};//upper part
+        int16_t a0[maxlen] = {0};//low part
+        int16_t b1[maxlen] = {0};//upper part
+        int16_t b0[maxlen] = {0};//low part
+        //split into upper an lower parts
+        for( i = k; i<=deg;i++)
+        {
+            a1[i-k] = polyA[i];
+            b1[i-k] = polyB[i];
+        }
+        for(i = 0; i<k;i++)
+        {
+            a0[i] = polyA[i];
+            b0[i] = polyB[i];
+        }
+
+        int16_t p2[maxlen] = {0};
+        int16_t p1[maxlen] = {0};
+        int16_t p0[maxlen] = {0};
+
+        //p2 = karatsuba_mul(a1, b1);
+        karatsubra_poly_mult_modq(p2,a1,b1,k+r-1,q);
+        int16_t a10[maxlen] = {0};
+        int16_t b10[maxlen] = {0};
+        simplePolyAddModQ(a10, a1, a0, k+r-1, q);
+        simplePolyAddModQ(b10, b1, b0, k+r-1, q);
+
+        karatsubra_poly_mult_modq(p1,a10,b10,k+r-1,q);
+        karatsubra_poly_mult_modq(p0,a0,b0,k-1,q);
+        //p1 = karatsuba_mul(a1 + a0, b1 + b0)
+        //p0 = karatsuba_mul(a0, b0)
+        int16_t c2[maxlen] = {0};
+        int16_t c1[maxlen] = {0};
+        int16_t c0[maxlen] = {0};
+
+        for( i = 2*k;i<4*k+2*r;i++)
+        {
+            c2[i] = p2[i-2*k];
+        }
+        simplePolySubModQ(c0, p1, p2, maxlen-1, q);
+        simplePolySubModQ(c0, c0, p0, maxlen-1, q);
+        for( i = k;i<4*k+2*r;i++)
+        {
+            c1[i] = c0[i-k];
+        }
+        simplePolyAddModQ(res, c2, c1, maxlen-1, q);
+        simplePolyAddModQ(res, res, p0, maxlen-1, q);
+    }
+}
+
+void test_karatsubra()
+{
+    int16_t res[12] = {0};
+    char* str;
+    str = (char *) malloc(15);
+    printf("\r\nKaratsuba: \r\n");
+
+    int16_t polyA[] = {3,-2,3};
+    int16_t polyB[] = {1,3,-1};
+    karatsubra_poly_mult_modq(res,polyA,polyB,2,32);
+   // simplePolyMulModQ(res,polyA,polyB,2,32);
+    printf("\r\Result: %d %d %d %d %d %d  \r\n",res[0],res[1],res[2],res[3],res[4],res[5]);
+
+
+
+}
+
+
+int main(void) {
+    printf("!!!Hello World!!!"); /* prints !!!Hello World!!! */
+    test_karatsubra();
+    return EXIT_SUCCESS;
+}
+        

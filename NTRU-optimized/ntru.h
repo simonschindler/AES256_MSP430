@@ -98,7 +98,7 @@ int16_t h112[NTRU_N_112] = {
 };
 #pragma PERSISTENT(test_m112)
 
-int16_t test_m112[NTRU_N_112] = {
+int8_t test_m112[NTRU_N_112] = {
                                 -1, -1, 1,  1,  1,  -1, -1, -1,
                                 -1, -1, -1, -1, -1, -1, -1, -1,
                                 -1, -1, -1, 1,  1,  -1, 1,  1,
